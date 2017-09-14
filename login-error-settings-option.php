@@ -17,6 +17,7 @@ add_action( 'admin_init', 'lesp_my_plugin_settings' );
 
 function lesp_my_plugin_settings() {
     register_setting( 'lesp-settings-group', 'lesp_custom_error' );
+    register_setting( 'lesp-settings-group', 'lesp_custom_pw_reset_message' );
     register_setting( 'lesp-settings-group', 'lesp_custom_forgot_pw_confirm' );
 }
 
@@ -40,6 +41,12 @@ function lesp_submenu_settings_page() {
             </tr>        
             <tr>
                 <th scope="row">
+                    <label for="lesp_custom_pw_reset_message">Password reset message.</label>
+                </th>
+                <td><input name="lesp_custom_pw_reset_message" type="text" id="lesp_custom_pw_reset_message" value="<?php echo esc_attr( get_option('lesp_custom_pw_reset_message') ); ?>" class="regular-text" /></td>
+            </tr>        
+            <tr>
+                <th scope="row">
                     <label for="lesp_custom_forgot_pw_confirm">Forgot email confirmation message.</label>
                 </th>
                 <td><input name="lesp_custom_forgot_pw_confirm" type="text" id="lesp_custom_forgot_pw_confirm" value="<?php echo esc_attr( get_option('lesp_custom_forgot_pw_confirm') ); ?>" class="regular-text" /></td>
@@ -52,6 +59,7 @@ function lesp_submenu_settings_page() {
 </div>
 <?php 
 }
+
 // Filters to control messaging on the forms in the login
 add_filter('login_message', 'lesp_login_message'); // Edit the login messages
 add_filter('login_errors','lesp_login_error_message'); // Edit the error messages in the login (e.g.)
@@ -78,8 +86,7 @@ function lesp_login_message( $message ) {
 
             } else {
 
-                $message = '<p class="message">' . get_option('lesp_custom_forgot_pw_confirm') . '</p>';
-                
+                $message = '<p class="message">' . get_option('lesp_custom_pw_reset_message') . '</p>';
             }
             
             break; 
@@ -105,13 +112,19 @@ function lesp_login_message( $message ) {
 function lesp_login_error_message( $error ){
 
     global $errors;
-    $error_messages_to_suppress = ['invalid_email', 'invalid_username', 'incorrect_password', 'invalidcombo']; //invalidcombo triggers on invalid email structure 
+    $error_messages_to_suppress = [
+        'invalid_email', 
+        'invalid_username', 
+        'incorrect_password', 
+        'invalidcombo', //invalidcombo triggers on invalid email structure 
+        'checkemail'
+        ]; 
     $errors_suppressed_count = 0;
     $suppress_error_message = false;
 
     //For debugging
     // $err = json_encode( $errors->get_error_codes() ); $req = json_encode( $_REQUEST ); $action = $_REQUEST['action'];
-    // echo('<script>console.log('.$req.'); console.log('.$err.');</script>');
+    // echo('<script>console.log('.$req.'); console.log('.$err.'); console.log('.$action.');</script>');
 
     // Finally, remove any errors that we do not want the user to see.
     // NOTE: unset($errors); This does not seem to make WP stop outputting the error object altogether. 
@@ -128,7 +141,7 @@ function lesp_login_error_message( $error ){
     } 
 
     //If we have some errors, just give the user configured message.
-    if ( ! $suppress_error_message && get_option( 'lesp_custom_error' ) ) {
+    if ( $suppress_error_message && get_option( 'lesp_custom_error' ) && $_REQUEST['action']!='lostpassword' ) {
 
         $error = get_option( 'lesp_custom_error' );
         return $error;
@@ -144,8 +157,15 @@ function lesp_login_error_message( $error ){
 * Remove the login shake.
 * Too good of a clue…
 */
-function lesp_login_head() {
-remove_action('login_head', 'wp_shake_js', 12);
+// function lesp_login_head() {
+// remove_action('login_head', 'wp_shake_js', 12);
+// }
+// add_action('login_head', 'lesp_login_head');
+/**
+* Remove Login Shake with filter
+*/
+add_filter( 'shake_error_codes', lesp_remove_shake_errors);
+function lesp_remove_shake_errors($shake_error_codes) {
+    //We want to remove this completely.
+    return [];
 }
-add_action('login_head', 'lesp_login_head');
-
