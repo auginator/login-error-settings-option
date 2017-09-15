@@ -64,46 +64,39 @@ function lesp_submenu_settings_page() {
 add_filter('login_message', 'lesp_login_message'); // Edit the login messages
 add_filter('login_errors','lesp_login_error_message'); // Edit the error messages in the login (e.g.)
 
-
 /**
 * lesp_login_message() is used to filter the login_message text for normal (non-error) messages.
 * @param string $message This is the wp generated message we may want to change 
 */
 function lesp_login_message( $message ) {
 
-    $action = $_REQUEST['action'];
+    global $errors;
 
-    switch ($action) {
-        case 'lostpassword':
+    // FYI: Other possibe $action values: 'resetpass' , 'login'
+    if ( $_REQUEST['action'] == 'lostpassword' ) {
+        if($_REQUEST['user_login']) { // If the person has already submitted the form…
 
-            if($_REQUEST['user_login']) { // If the person has already submitted the form…
+            // We do not want to divulge whether or not the email exists.
+            // Show the Message that the user has configured, instead of the normal one.
+            // lesp_login_error_message() will remove the error associated with bad email entry, 
+            // so it will no longer be possible to tell whether the email exists or not.
+            $message = '<p class="message">' . get_option('lesp_custom_forgot_pw_confirm') . '</p>';
 
-                // We do not want to divulge whether or not the email exists.
-                // Show the Message that the user has configured, instead of the normal one.
-                // lesp_login_error_message() will remove the error associated with bad email entry, 
-                // so it will no longer be possible to tell whether the email exists or not.
-                $message = '<p class="message">' . get_option('lesp_custom_forgot_pw_confirm') . '</p>';
+        } else {
 
-            } else {
-
-                $message = '<p class="message">' . get_option('lesp_custom_pw_reset_message') . '</p>';
-            }
-            
-            break; 
-
-        case 'resetpass':
-            # code...
-            
-            break;
-
-        case 'login':
-            # code...
-            break;
-        
-        default:
-            # code...
-            break;
+            $message = '<p class="message">' . get_option('lesp_custom_pw_reset_message') . '</p>';
+        }
     }
+
+    if ( $_REQUEST['checkemail'] == 'confirm' ) {
+        $errors->remove('message');
+        $errors->add('confirm', get_option('lesp_custom_forgot_pw_confirm') , 'message');
+    }
+    // Debug
+    // echo('<script>
+    //             console.warn("login_message:after");
+    //             console.log('.json_encode( $errors ).');
+    //     </script>');
     return $message;
 }
 
@@ -112,6 +105,7 @@ function lesp_login_message( $message ) {
 function lesp_login_error_message( $error ){
 
     global $errors;
+    global $error_data;
     $error_messages_to_suppress = [
         'invalid_email', 
         'invalid_username', 
@@ -123,8 +117,19 @@ function lesp_login_error_message( $error ){
     $suppress_error_message = false;
 
     //For debugging
-    // $err = json_encode( $errors->get_error_codes() ); $req = json_encode( $_REQUEST ); $action = $_REQUEST['action'];
-    // echo('<script>console.log('.$req.'); console.log('.$err.'); console.log('.$action.');</script>');
+    // $err = json_encode( $errors->get_error_codes() );
+    // $req = json_encode( $_REQUEST );
+    // $action = json_encode( $_REQUEST['action'] );
+    echo('<script>console.warn("login_error_message");console.log('.json_encode( $errors->get_error_codes() ).');</script>');
+
+    // Intercept the error state where a user has submitted a PW reset with a bad email
+    // Send it to the same screen as when the user does have an account.
+    if($_REQUEST['action']=='lostpassword' && $errors->get_error_code()=='invalid_email') {
+
+        header("Location:/wp-login.php?checkemail=confirm", true);
+        exit();
+
+    }
 
     // Finally, remove any errors that we do not want the user to see.
     // NOTE: unset($errors); This does not seem to make WP stop outputting the error object altogether. 
